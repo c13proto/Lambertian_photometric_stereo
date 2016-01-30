@@ -23,7 +23,7 @@ namespace Lambertian_photometric_stereo
         double[,] light_v;//光源の向いてる方向のベクトル
         double[] camera_light_v=new double[4];//カメラとライトのなす角度(rad)
 
-        double[,][] 表面角度;
+        double[,][] 表面角度=new double[640,480][];
         int[,] 鏡面反射番号=new int[640,480];
 
         public main()
@@ -69,8 +69,10 @@ namespace Lambertian_photometric_stereo
                 light_v[r, 0] = x * cos-z*sin;
                 light_v[r, 2] = x * sin + z * cos;
             }
+            for (int r = 0; r < 4; r++)//一1以上の数字に調整
+                for (int c = 0; c < 3; c++) light_v[r, c] *= 10;
 
-            for (int i = 0; i < 4; i++) Console.WriteLine("{0},{1},{2}", light_v[i, 0], light_v[i, 1],light_v[i,2]);
+            for (int i = 0; i < 4; i++) Console.WriteLine("{0},{1},{2}", light_v[i, 0], light_v[i, 1], light_v[i, 2]);
             //for (int r = 0; r <4; r++)
             //{//カメラと光源のなす角度の計算
             //    double 内積=0;
@@ -88,17 +90,27 @@ namespace Lambertian_photometric_stereo
         }
         void 表面角度計算()
         {
+            IplImage 表面角度分布 = Cv.CreateImage(new CvSize(テンプレ画像.Width, テンプレ画像.Height), BitDepth.U8, 3);
+            表面角度分布.Zero();
+            表面角度分布.Not(表面角度分布);
             Console.WriteLine("表面角度計算開始");
             for (int y = 0; y < 入力画像[0].Height; y++)
             {
                 for (int x = 0; x < 入力画像[0].Width; x++)
                 {
-                    if (Cv.Get2D(テンプレ画像, y, x).Val0 != 255) 鏡面反射番号取得(x, y);
-                    //if(x%10==0&&y%10==0)Console.Write(鏡面反射番号[x,y]);
+                    if (Cv.Get2D(テンプレ画像, y, x).Val0 != 255)
+                    {
+                        鏡面反射番号取得(x, y);
+                        画素値行列取得(x, y);
+
+                        CvScalar color = new CvScalar(表面角度[x, y][0], 表面角度[x, y][1], 表面角度[x, y][2]);
+                        表面角度分布.Set2D(y,x,color);
+                        //Console.WriteLine("{0},{1},{2}", 表面角度[x, y][0], 表面角度[x, y][1], 表面角度[x, y][2]);
+                    }
                 }
-                //if(y%10==0)Console.WriteLine("");
             }
             Console.WriteLine("表面角度計算終了");
+            pictureBoxIpl1.ImageIpl=表面角度分布;
         }
         void 鏡面反射番号取得(int x,int y)
         {
@@ -114,6 +126,50 @@ namespace Lambertian_photometric_stereo
                 }
             }
             鏡面反射番号[x, y] = max_num;
+        }
+        void 画素値行列取得(int x, int y)
+        {
+            double[] I=new double[3];//輝度値ベクトル
+            double[,] S=new double[3,3];//光源ベクトル
+            double[,] S_;//光源ベクトルの逆行列
+            double detS;//Sの行列式
+            double [] N=new double[3];//法線ベクトル
+            int num = 0;
+            for (int i = 0; i < 4; i++)
+            {
+                if (i != 鏡面反射番号[x, y])
+                {
+                    I[num]=Cv.Get2D(入力画像[i],y,x).Val0;
+                    for (int c = 0; c < 3;c++) S[num, c]=light_v[i, c];
+                    num++;
+                }
+            }
+            //detA=a11a22a33+a21a32a13+a31a12a23-a11a32a23-a31a22a13-a21a12a33
+            detS=S[0,0]*S[1,1]*S[2,2]+S[1,0]*S[2,1]*S[0,2]+S[2,0]*S[0,1]*S[1,2]
+                 -S[0,0]*S[2,1]*S[1,2]-S[2,0]*S[1,1]*S[0,2]-S[1,0]*S[0,1]*S[2,2];
+            //Console.WriteLine("detS={0}",detS);
+            S_ = new double[3, 3] 
+                {   { S[1,1]*S[2,2]-S[1,2]*S[2,1], S[0,2]*S[2,1]-S[0,1]*S[2,2], S[0,1]*S[1,2]-S[0,2]*S[1,1]},
+                    { S[1,2]*S[2,0]-S[1,0]*S[2,2], S[0,0]*S[2,2]-S[0,2]*S[2,0], S[0,2]*S[1,0]-S[0,0]*S[1,2]},
+                    { S[1,0]*S[2,1]-S[1,1]*S[2,0], S[0,1]*S[2,0]-S[0,0]*S[2,1], S[0,0]*S[1,1]-S[0,1]*S[1,0]}
+                };
+            for (int r = 0; r < 3; r++)
+                for (int c = 0; c < 3; c++) S_[r, c] /= detS;
+
+            //逆行列をかけて法線ベクトル計算
+            for (int r = 0; r < 3; r++)
+            {
+                N[r] = 0;
+                for (int c = 0; c < 3; c++) N[r] += S_[r, c] * I[c];
+            }
+            行列の正規化(ref N, 255);
+            表面角度[x, y] = new double[3] {N[0],N[1],N[2]};
+        }
+        void 行列の正規化(ref double[] array,double val)
+        {
+            double norm = Math.Sqrt(array[0] * array[0] + array[1] * array[1] + array[2] * array[2]);
+            for (int i = 0; i < 3; i++) array[i] *= val / norm;
+ 
         }
         private void Click_開く(object sender, EventArgs e)
         {
@@ -171,6 +227,7 @@ namespace Lambertian_photometric_stereo
                 }
                 // ファイル名をタイトルバーに設定
                 this.Text = dialog.FileNames[0];
+                pictureBoxIpl1.ImageIpl = テンプレ画像;
             }
         }
         private void Click_実行(object sender, EventArgs e)
