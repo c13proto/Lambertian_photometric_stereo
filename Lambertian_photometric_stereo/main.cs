@@ -168,8 +168,12 @@ namespace Lambertian_photometric_stereo
         void 行列の正規化(ref double[] array,double val)
         {
             double norm = Math.Sqrt(array[0] * array[0] + array[1] * array[1] + array[2] * array[2]);
-            for (int i = 0; i < 3; i++) array[i] *= val / norm;
- 
+            for (int i = 0; i < 3; i++)
+            {
+                array[i] = val/2.0+array[i]*val/(2.0*norm);
+                if (array[i] < 0) array[i] = 0;
+                if (array[i] > val) array[i] = val;
+            }
         }
         private void Click_開く(object sender, EventArgs e)
         {
