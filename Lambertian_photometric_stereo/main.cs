@@ -90,7 +90,7 @@ namespace Lambertian_photometric_stereo
         }
         void 表面角度計算()
         {
-            IplImage 表面角度分布 = Cv.CreateImage(new CvSize(テンプレ画像.Width, テンプレ画像.Height), BitDepth.U8, 3);
+            IplImage 表面角度分布 = Cv.CreateImage(new CvSize(入力画像[0].Width, 入力画像[0].Height), BitDepth.U8, 3);
             表面角度分布.Zero();
             表面角度分布.Not(表面角度分布);
             Console.WriteLine("表面角度計算開始");
@@ -98,7 +98,7 @@ namespace Lambertian_photometric_stereo
             {
                 for (int x = 0; x < 入力画像[0].Width; x++)
                 {
-                    if (Cv.Get2D(テンプレ画像, y, x).Val0 != 255)
+                    //if (Cv.Get2D(テンプレ画像, y, x).Val0 != 255)
                     {
                         鏡面反射番号取得(x, y);
                         画素値行列取得(x, y);
@@ -236,6 +236,7 @@ namespace Lambertian_photometric_stereo
         }
         private void Click_実行(object sender, EventArgs e)
         {
+            ベクトル格納();
             表面角度計算();
         }
         private void Click_radio0(object sender, EventArgs e)//ラジオボタンは選択された時にのみクリックイベントが発生
